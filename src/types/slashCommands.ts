@@ -58,7 +58,8 @@ export enum SlashCommandOptionType {
   USER = 6,
   CHANNEL = 7,
   ROLE = 8,
-  MENTIONABLE = 9
+  MENTIONABLE = 9,
+  NUMBER = 10
 }
 
 export interface SlashCommandOptionBase<
@@ -67,8 +68,8 @@ export interface SlashCommandOptionBase<
 > {
   /** Name of the option. */
   name: string
-  /** Description of the Option. Not required in Sub-Command-Group */
-  description?: string
+  /** Description of the Option. */
+  description: string
   /** Option type */
   type: OptionType
   /** Whether the option is required or not, false by default */

@@ -162,11 +162,23 @@ export class TextChannel extends Channel {
 
     for (const raw of raws) {
       await this.messages.set(raw.id, raw)
-      const msg = ((await this.messages.get(raw.id)) as unknown) as Message
+      const msg = (await this.messages.get(raw.id)) as unknown as Message
       res.set(msg.id, msg)
     }
 
     return res
+  }
+
+  async getPinnedMessages(): Promise<Collection<string, Message>> {
+    return this.client.channels.getPinnedMessages(this)
+  }
+
+  async pinMessage(message: string | Message): Promise<void> {
+    return this.client.channels.pinMessage(this, message)
+  }
+
+  async unpinMessage(message: string | Message): Promise<void> {
+    return this.client.channels.unpinMessage(this, message)
   }
 
   /** Trigger the typing indicator. NOT recommended to be used by bots unless you really want to. */

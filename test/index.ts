@@ -35,6 +35,12 @@ client.on('ready', () => {
 
 client.on('debug', console.log)
 
+client.on('threadCreate', (t) => console.log('Thread Create', t))
+client.on('threadDelete', (t) => console.log('Thread Delete', t))
+client.on('threadDeleteUncached', (t) =>
+  console.log('Thread Delete Uncached', t)
+)
+
 client.on('channelUpdate', (b: EveryChannelTypes, a: EveryChannelTypes) => {
   if (b.type === ChannelTypes.GUILD_TEXT) {
     const before = b as unknown as GuildTextChannel
@@ -50,10 +56,10 @@ client.on('channelUpdate', (b: EveryChannelTypes, a: EveryChannelTypes) => {
 
 client.on('messageCreate', async (msg: Message) => {
   if (msg.author.bot === true) return
-  if (msg.stickers !== undefined) {
+  if (msg.stickerItems !== undefined) {
     console.log(
-      `${msg.author.tag}: (Sticker)${msg.stickers.map(
-        (sticker) => `Name: ${sticker.name}, Tags: ${sticker.tags}`
+      `${msg.author.tag}: (Sticker)${msg.stickerItems.map(
+        (sticker) => `Name: ${sticker.name}`
       )}`
     )
   } else {
@@ -288,6 +294,24 @@ client.on('messageCreate', async (msg: Message) => {
         })
       }, 1000)
     })
+  } else if (msg.content === '!pin') {
+    await msg.pinMessage()
+    msg.channel.send('Done!')
+  } else if (msg.content.startsWith('!unpin') === true) {
+    const [, ...ids] = msg.content.split(' ')
+    if (ids.length === 0) {
+      msg.channel.send('Please specify a message ID!')
+      return
+    }
+
+    for (const id of ids) {
+      await msg.channel.unpinMessage(id)
+    }
+
+    msg.channel.send('Done!')
+  } else if (msg.content === '!getPins') {
+    const pins = await msg.channel.getPinnedMessages()
+    msg.channel.send(`Pinned messages: ${pins.map((pin) => pin.id).join('\n')}`)
   }
 })
 

@@ -12,11 +12,38 @@ import { OverrideType } from '../types/channel.ts'
 import { CHANNEL } from '../types/endpoint.ts'
 import type { GuildChannelPayloads, GuildChannels } from '../types/guild.ts'
 import getChannelByType from '../utils/channel.ts'
+import {
+  isDMChannel,
+  isGroupDMChannel,
+  isThreadChannel,
+  isCategoryChannel,
+  isGuildBasedTextChannel,
+  isGuildChannel,
+  isGuildTextChannel,
+  isNewsChannel,
+  isStageVoiceChannel,
+  isStoreChannel,
+  isTextChannel,
+  isVoiceChannel
+} from '../utils/channelTypes.ts'
 import { Permissions } from '../utils/permissions.ts'
 import { SnowflakeBase } from './base.ts'
 import type { Guild } from './guild.ts'
 import { Member } from './member.ts'
 import { Role } from './role.ts'
+import type { DMChannel } from '../structures/dmChannel.ts'
+import type { GroupDMChannel } from '../structures/groupChannel.ts'
+import type { CategoryChannel } from '../structures/guildCategoryChannel.ts'
+import type { NewsChannel } from '../structures/guildNewsChannel.ts'
+import type { StoreChannel } from '../structures/guildStoreChannel.ts'
+import type {
+  GuildTextBasedChannel,
+  GuildTextChannel
+} from '../structures/guildTextChannel.ts'
+import type { VoiceChannel } from '../structures/guildVoiceChannel.ts'
+import type { StageVoiceChannel } from '../structures/guildVoiceStageChannel.ts'
+import { TextChannel } from '../structures/textChannel.ts'
+import type { ThreadChannel } from '../structures/threadChannel.ts'
 
 export class Channel extends SnowflakeBase {
   type: ChannelTypes
@@ -35,6 +62,54 @@ export class Channel extends SnowflakeBase {
   readFromData(data: ChannelPayload): void {
     this.type = data.type ?? this.type
     this.id = data.id ?? this.id
+  }
+
+  isDM(): this is DMChannel {
+    return isDMChannel(this)
+  }
+
+  isGroupDM(): this is GroupDMChannel {
+    return isGroupDMChannel(this)
+  }
+
+  isGuild(): this is GuildChannel {
+    return isGuildChannel(this)
+  }
+
+  isText(): this is TextChannel {
+    return isTextChannel(this)
+  }
+
+  isVoice(): this is VoiceChannel {
+    return isVoiceChannel(this)
+  }
+
+  isStage(): this is StageVoiceChannel {
+    return isStageVoiceChannel(this)
+  }
+
+  isThread(): this is ThreadChannel {
+    return isThreadChannel(this)
+  }
+
+  isGuildTextBased(): this is GuildTextBasedChannel {
+    return isGuildBasedTextChannel(this)
+  }
+
+  isGuildText(): this is GuildTextChannel {
+    return isGuildTextChannel(this)
+  }
+
+  isCategory(): this is CategoryChannel {
+    return isCategoryChannel(this)
+  }
+
+  isNews(): this is NewsChannel {
+    return isNewsChannel(this)
+  }
+
+  isStore(): this is StoreChannel {
+    return isStoreChannel(this)
   }
 }
 
@@ -184,36 +259,34 @@ export class GuildChannel extends Channel {
 
   /** Set Permission Overwrites of the Channel */
   async setOverwrites(overwrites: OverwriteAsArg[]): Promise<GuildChannels> {
-    const result = overwrites.map(
-      (overwrite): OverwritePayload => {
-        const id =
-          typeof overwrite.id === 'string' ? overwrite.id : overwrite.id.id
-        const allow =
-          typeof overwrite.allow === 'string'
-            ? overwrite.allow
-            : overwrite.allow?.toJSON() ?? '0'
-        const deny =
-          typeof overwrite.deny === 'string'
-            ? overwrite.deny
-            : overwrite.deny?.toJSON() ?? '0'
-        const type =
-          overwrite.id instanceof Role
-            ? 0
-            : overwrite.id instanceof Member
-            ? 1
-            : overwrite.type
-        if (type === undefined) {
-          throw new Error('Overwrite type is undefined.')
-        }
-
-        return {
-          id,
-          type,
-          allow,
-          deny
-        }
+    const result = overwrites.map((overwrite): OverwritePayload => {
+      const id =
+        typeof overwrite.id === 'string' ? overwrite.id : overwrite.id.id
+      const allow =
+        typeof overwrite.allow === 'string'
+          ? overwrite.allow
+          : overwrite.allow?.toJSON() ?? '0'
+      const deny =
+        typeof overwrite.deny === 'string'
+          ? overwrite.deny
+          : overwrite.deny?.toJSON() ?? '0'
+      const type =
+        overwrite.id instanceof Role
+          ? 0
+          : overwrite.id instanceof Member
+          ? 1
+          : overwrite.type
+      if (type === undefined) {
+        throw new Error('Overwrite type is undefined.')
       }
-    )
+
+      return {
+        id,
+        type,
+        allow,
+        deny
+      }
+    })
     return await this.edit({ permissionOverwrites: result })
   }
 

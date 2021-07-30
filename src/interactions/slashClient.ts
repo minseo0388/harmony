@@ -299,8 +299,8 @@ export class SlashClient extends HarmonyEventEmitter<SlashClientEvents> {
           member: payload.member as any,
           guild: payload.guild_id as any,
           channel: payload.channel_id as any,
-          resolved: (((payload.data as any)
-            ?.resolved as unknown) as InteractionApplicationCommandResolved) ?? {
+          resolved: ((payload.data as any)
+            ?.resolved as unknown as InteractionApplicationCommandResolved) ?? {
             users: {},
             members: {},
             roles: {},
@@ -316,6 +316,7 @@ export class SlashClient extends HarmonyEventEmitter<SlashClientEvents> {
           channel: payload.channel_id as any
         })
       }
+      await this.emit('interaction', res)
       res._httpRespond = async (d: InteractionResponsePayload | FormData) =>
         await req.respond({
           status: 200,

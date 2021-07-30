@@ -126,7 +126,7 @@ export class Webhook {
     }
 
     if ((option as WebhookMessageOptions)?.avatar !== undefined) {
-      payload.avatar = (option as WebhookMessageOptions)?.avatar
+      payload.avatar_url = (option as WebhookMessageOptions)?.avatar
     }
 
     if (
@@ -141,8 +141,8 @@ export class Webhook {
     const res = new Message(
       this.client as Client,
       resp,
-      (this as unknown) as TextChannel,
-      (this as unknown) as User
+      this as unknown as TextChannel,
+      this as unknown as User
     )
     await res.mentions.fromPayload(resp)
     return res

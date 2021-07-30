@@ -15,15 +15,20 @@ import { Embed } from './embed.ts'
 import { CHANNEL_MESSAGE } from '../types/endpoint.ts'
 import { MessageMentions } from './messageMentions.ts'
 import type { TextChannel } from './textChannel.ts'
-import type { GuildTextBasedChannel } from './guildTextChannel.ts'
+import type {
+  CreateThreadOptions,
+  GuildTextBasedChannel,
+  GuildTextChannel
+} from './guildTextChannel.ts'
 import type { Guild } from './guild.ts'
 import { MessageReactionsManager } from '../managers/messageReactions.ts'
-import { MessageSticker } from './messageSticker.ts'
+import { MessageStickerItem } from './messageStickerItem.ts'
 import type { Emoji } from './emoji.ts'
 import type { InteractionType } from '../types/interactions.ts'
 import { encodeText } from '../utils/encoding.ts'
 import { MessageComponentData } from '../types/messageComponents.ts'
 import { transformComponentPayload } from '../utils/components.ts'
+import { ThreadChannel } from './threadChannel.ts'
 
 type AllMessageOptions = MessageOptions | Embed
 
@@ -65,7 +70,7 @@ export class Message extends SnowflakeBase {
   application?: MessageApplication
   messageReference?: MessageReference
   flags?: number
-  stickers?: MessageSticker[]
+  stickerItems?: MessageStickerItem[]
   interaction?: MessageInteraction
   createdTimestamp: Date
   components: MessageComponentData[] = []
@@ -105,10 +110,10 @@ export class Message extends SnowflakeBase {
     this.messageReference = data.message_reference
     this.flags = data.flags ?? 0
     this.channel = channel
-    this.stickers =
-      data.stickers !== undefined
-        ? data.stickers.map(
-            (payload) => new MessageSticker(this.client, payload)
+    this.stickerItems =
+      data.sticker_items !== undefined
+        ? data.sticker_items.map(
+            (payload) => new MessageStickerItem(this.client, payload)
           )
         : undefined
     this.interaction =
@@ -140,12 +145,12 @@ export class Message extends SnowflakeBase {
     this.application = data.application ?? this.application
     this.messageReference = data.message_reference ?? this.messageReference
     this.flags = data.flags ?? this.flags
-    this.stickers =
-      data.stickers !== undefined
-        ? data.stickers.map(
-            (payload) => new MessageSticker(this.client, payload)
+    this.stickerItems =
+      data.sticker_items !== undefined
+        ? data.sticker_items.map(
+            (payload) => new MessageStickerItem(this.client, payload)
           )
-        : this.stickers
+        : this.stickerItems
     this.interaction =
       data.interaction === undefined
         ? this.interaction
@@ -230,6 +235,21 @@ export class Message extends SnowflakeBase {
     user?: User | Member | string
   ): Promise<void> {
     return this.channel.removeReaction(this, emoji, user)
+  }
+
+  async startThread(options: CreateThreadOptions): Promise<ThreadChannel> {
+    if (this.channel.isGuildText() === true) {
+      const chan = this.channel as unknown as GuildTextChannel
+      return chan.startThread(options, this)
+    } else throw new Error('Threads can only be made in Guild Text Channels')
+  }
+
+  async pinMessage(): Promise<void> {
+    return this.client.channels.pinMessage(this.channel, this)
+  }
+
+  async unpinMessage(): Promise<void> {
+    return this.client.channels.unpinMessage(this.channel, this)
   }
 }
 
