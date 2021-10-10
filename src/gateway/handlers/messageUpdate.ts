@@ -7,10 +7,9 @@ export const messageUpdate: GatewayEventHandler = async (
   gateway: Gateway,
   d: MessagePayload
 ) => {
-  let channel = await gateway.client.channels.get<TextChannel>(d.channel_id)
-  // Fetch the channel if not cached
-  if (channel === undefined)
-    channel = await gateway.client.channels.fetch(d.channel_id)
+  const channel = await gateway.client.channels.get<TextChannel>(d.channel_id)
+  // if (channel === undefined)
+  //   channel = await gateway.client.channels.fetch(d.channel_id)
 
   if (channel === undefined) return
 

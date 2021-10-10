@@ -30,10 +30,11 @@ export interface VoiceStateOptions {
 }
 
 export const RECONNECT_REASON = 'harmony-reconnect'
+export const DESTROY_REASON = 'harmony-destroy'
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 export type GatewayTypedEvents = {
-  [name in GatewayEvents]: [any]
+  [name in GatewayEvents]: [unknown]
 } & {
   connect: []
   ping: [number]
@@ -156,16 +157,16 @@ export class Gateway extends HarmonyEventEmitter<GatewayTypedEvents> {
           await this.cache.set(`seq_${this.shards?.join('-') ?? '0'}`, s)
         }
         if (t !== null && t !== undefined) {
-          this.emit(t as any, d)
+          this.emit(t as keyof GatewayTypedEvents, d)
           this.client.emit('raw', t, d, this.shardID)
 
           const handler = gatewayHandlers[t]
 
           if (handler !== undefined && d !== null) {
             try {
-              handler(this, d)
+              await handler(this, d)
             } catch (e) {
-              console.error(`Internal error in Shard ${this.shardID}: ${e}`)
+              this.client.emit('error', e)
             }
           }
         }
@@ -225,9 +226,17 @@ export class Gateway extends HarmonyEventEmitter<GatewayTypedEvents> {
   }
 
   private async onclose({ reason, code }: CloseEvent): Promise<void> {
+    if (this.destroyed) return
+    if (this.#destroyCalled) {
+      this.#destroyComplete = true
+      this.debug(`Shard destroyed`)
+      return
+    }
+
     if (reason === RECONNECT_REASON) return
+
     this.emit('close', code, reason)
-    this.debug(`Connection Closed with code: ${code}`)
+    this.debug(`Connection Closed with code: ${code} ${reason}`)
 
     switch (code) {
       case GatewayCloseCodes.UNKNOWN_ERROR:
@@ -316,7 +325,7 @@ export class Gateway extends HarmonyEventEmitter<GatewayTypedEvents> {
       const sessionIDCached = await this.cache.get(
         `session_id_${this.shards?.join('-') ?? '0'}`
       )
-      if (sessionIDCached !== undefined) {
+      if (typeof sessionIDCached === 'string') {
         this.debug(`Found Cached SessionID: ${sessionIDCached}`)
         this.sessionID = sessionIDCached
         return await this.sendResume()
@@ -366,7 +375,8 @@ export class Gateway extends HarmonyEventEmitter<GatewayTypedEvents> {
         `seq_${this.shards?.join('-') ?? '0'}`
       )
       if (cached !== undefined)
-        this.sequenceID = typeof cached === 'string' ? parseInt(cached) : cached
+        this.sequenceID =
+          typeof cached === 'string' ? parseInt(cached) : (cached as number)
     }
     const resumePayload = {
       op: GatewayOpcodes.RESUME,
@@ -437,6 +447,8 @@ export class Gateway extends HarmonyEventEmitter<GatewayTypedEvents> {
   }
 
   async reconnect(forceNew?: boolean): Promise<void> {
+    if (this.#destroyCalled) return
+
     this.emit('reconnecting')
     this.debug('Reconnecting... (force new: ' + String(forceNew) + ')')
 
@@ -451,6 +463,8 @@ export class Gateway extends HarmonyEventEmitter<GatewayTypedEvents> {
   }
 
   initWebsocket(): void {
+    if (this.#destroyCalled) return
+
     this.emit('init')
     this.debug('Initializing WebSocket...')
     this.websocket = new WebSocket(
@@ -462,7 +476,9 @@ export class Gateway extends HarmonyEventEmitter<GatewayTypedEvents> {
     this.websocket.onopen = this.onopen.bind(this)
     this.websocket.onmessage = this.onmessage.bind(this)
     this.websocket.onclose = this.onclose.bind(this)
-    this.websocket.onerror = this.onerror.bind(this) as any
+    this.websocket.onerror = this.onerror.bind(
+      this
+    ) as unknown as WebSocket['onerror']
   }
 
   closeGateway(code: number = 1000, reason?: string): void {
@@ -472,6 +488,24 @@ export class Gateway extends HarmonyEventEmitter<GatewayTypedEvents> {
       }`
     )
     return this.websocket?.close(code, reason)
+  }
+
+  #destroyCalled = false
+  #destroyComplete = false
+
+  get destroyed(): boolean {
+    return this.#destroyCalled && this.#destroyComplete
+  }
+
+  destroy(): void {
+    this.debug('Destroying Shard')
+    this.#destroyCalled = true
+
+    if (this.heartbeatIntervalID !== undefined) {
+      clearInterval(this.heartbeatIntervalID)
+      this.heartbeatIntervalID = undefined
+    }
+    this.closeGateway(1000, DESTROY_REASON)
   }
 
   send(data: GatewayResponse): boolean {
@@ -504,6 +538,8 @@ export class Gateway extends HarmonyEventEmitter<GatewayTypedEvents> {
   }
 
   heartbeat(): void {
+    if (this.destroyed) return
+
     if (this.heartbeatServerResponded) {
       this.heartbeatServerResponded = false
     } else {
@@ -518,4 +554,6 @@ export class Gateway extends HarmonyEventEmitter<GatewayTypedEvents> {
   }
 }
 
+// There's a lot of not assignable errors and all when using unknown,
+// so I'll stick with any here.
 export type GatewayEventHandler = (gateway: Gateway, d: any) => void

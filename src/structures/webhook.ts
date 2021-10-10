@@ -4,7 +4,7 @@ import type { MessageOptions } from '../types/channel.ts'
 import type { UserPayload } from '../types/user.ts'
 import type { WebhookPayload } from '../types/webhook.ts'
 import { Embed } from './embed.ts'
-import { Message } from './message.ts'
+import { Message, MessageAttachment } from './message.ts'
 import type { TextChannel } from './textChannel.ts'
 import { User } from './user.ts'
 import { fetchAuto } from '../../deps.ts'
@@ -31,10 +31,10 @@ export interface WebhookEditOptions {
 /** Webhook follows different way of instantiation */
 export class Webhook {
   client?: Client
-  id: string
-  type: 1 | 2
+  id!: string
+  type!: 1 | 2
   guildID?: string
-  channelID: string
+  channelID!: string
   user?: User
   userRaw?: UserPayload
   name?: string
@@ -50,27 +50,15 @@ export class Webhook {
   }
 
   constructor(data: WebhookPayload, client?: Client, rest?: RESTManager) {
-    this.id = data.id
-    this.type = data.type
-    this.channelID = data.channel_id
-    this.guildID = data.guild_id
-    this.user =
-      data.user === undefined || client === undefined
-        ? undefined
-        : new User(client, data.user)
-    if (data.user !== undefined && client === undefined)
-      this.userRaw = data.user
-    this.name = data.name
-    this.avatar = data.avatar
-    this.token = data.token
-    this.applicationID = data.application_id
-
+    this.fromPayload(data)
     if (rest !== undefined) this.rest = rest
-    else if (client !== undefined) this.rest = client.rest
-    else this.rest = new RESTManager()
+    else if (client !== undefined) {
+      this.client = client
+      this.rest = client.rest
+    } else this.rest = new RESTManager()
   }
 
-  private fromPayload(data: WebhookPayload): Webhook {
+  private fromPayload(data: WebhookPayload): this {
     this.id = data.id
     this.type = data.type
     this.channelID = data.channel_id
@@ -108,7 +96,7 @@ export class Webhook {
         embeds: [option]
       }
 
-    const payload: any = {
+    const payload = {
       content: text,
       embeds:
         (option as WebhookMessageOptions)?.embed !== undefined
@@ -118,7 +106,9 @@ export class Webhook {
           : undefined,
       file: (option as WebhookMessageOptions)?.file,
       tts: (option as WebhookMessageOptions)?.tts,
-      allowed_mentions: (option as WebhookMessageOptions)?.allowedMentions
+      allowed_mentions: (option as WebhookMessageOptions)?.allowedMentions,
+      username: undefined as undefined | string,
+      avatar_url: undefined as undefined | string
     }
 
     if ((option as WebhookMessageOptions)?.name !== undefined) {
@@ -187,9 +177,8 @@ export class Webhook {
 
   /** Deletes the Webhook. */
   async delete(): Promise<boolean> {
-    const resp = await this.rest.delete(this.url, undefined, 0, undefined, true)
-    if (resp.response.status !== 204) return false
-    else return true
+    await this.rest.delete(this.url)
+    return true
   }
 
   async editMessage(
@@ -197,7 +186,7 @@ export class Webhook {
     data: {
       content?: string
       embeds?: Embed[]
-      file?: any
+      file?: MessageAttachment
       allowed_mentions?: {
         parse?: string
         roles?: string[]

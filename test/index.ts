@@ -13,7 +13,8 @@ import {
   Permissions,
   Collector,
   MessageAttachment,
-  OverrideType
+  OverrideType,
+  ColorUtil
 } from '../mod.ts'
 import { TOKEN } from './config.ts'
 
@@ -312,6 +313,18 @@ client.on('messageCreate', async (msg: Message) => {
   } else if (msg.content === '!getPins') {
     const pins = await msg.channel.getPinnedMessages()
     msg.channel.send(`Pinned messages: ${pins.map((pin) => pin.id).join('\n')}`)
+  } else if (msg.content === '!avatar') {
+    if (msg.member !== undefined) {
+      msg.channel.send(msg.member.avatarURL())
+    } else {
+      msg.channel.send(msg.author.avatarURL())
+    }
+  } else if (msg.content === '!color') {
+    msg.channel.send(
+      msg.member !== undefined
+        ? ColorUtil.intToHex(await msg.member.effectiveColor())
+        : 'not in a guild'
+    )
   }
 })
 

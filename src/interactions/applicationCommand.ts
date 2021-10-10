@@ -16,6 +16,7 @@ import {
   ApplicationCommandPermissionPayload,
   ApplicationCommandPermissionType
 } from '../types/applicationCommand.ts'
+import { ChannelTypes } from '../types/channel.ts'
 import { Collection } from '../utils/collection.ts'
 import type {
   InteractionsClient,
@@ -255,31 +256,42 @@ export class SlashBuilder {
 export function transformApplicationCommandOption(
   _data: ApplicationCommandOption
 ): ApplicationCommandOptionPayload {
-  const data = { ...(_data as any) }
+  const data: Record<string, unknown> = { ..._data }
   if (typeof data.type === 'string') {
-    data.type = ApplicationCommandOptionType[data.type.toUpperCase()]
+    data.type =
+      ApplicationCommandOptionType[
+        data.type.toUpperCase() as keyof typeof ApplicationCommandOptionType
+      ]
   }
-  if (typeof data.options === 'object' && Array.isArray(data.options)) {
+  if (Array.isArray(data.options)) {
     data.options = data.options.map(transformApplicationCommandOption)
   }
-  return data
+  if (Array.isArray(data.channelTypes)) {
+    data.channel_types = data.channelTypes.map(
+      (e: ApplicationCommandOption['channelTypes']) =>
+        typeof e === 'string' ? ChannelTypes[e] : e
+    )
+    delete data.channel_types
+  }
+  return data as unknown as ApplicationCommandOptionPayload
 }
 
 export function transformApplicationCommand(
   _cmd: ApplicationCommandPartial
 ): ApplicationCommandPartialPayload {
-  const cmd = { ...(_cmd as any) }
+  const cmd: Record<string, unknown> = { ..._cmd }
   if (cmd.defaultPermission !== undefined) {
     cmd.default_permission = cmd.defaultPermission
     delete cmd.defaultPermission
   }
   if (typeof cmd.type === 'string') {
-    cmd.type = ApplicationCommandType[cmd.type]
+    cmd.type =
+      ApplicationCommandType[cmd.type as keyof typeof ApplicationCommandType]
   }
   if (typeof cmd.options === 'object' && Array.isArray(cmd.options)) {
     cmd.options = cmd.options.map(transformApplicationCommandOption)
   }
-  return cmd
+  return cmd as unknown as ApplicationCommandPartialPayload
 }
 
 export function transformApplicationCommandPermission(
@@ -298,24 +310,24 @@ export function transformApplicationCommandPermission(
 export function transformApplicationCommandPermissions(
   _data: GuildSlashCommmandPermissionsPartial
 ): GuildSlashCommmandPermissionsPayload {
-  const data = { ...(_data as any) }
+  const data = { ..._data }
   if (typeof data.permissions === 'object' && Array.isArray(data.permissions)) {
     data.permissions = data.permissions.map(
       transformApplicationCommandPermission
     )
   }
-  return data
+  return data as unknown as GuildSlashCommmandPermissionsPayload
 }
 
 export function transformApplicationCommandPermissionsPayload(
   _data: GuildSlashCommmandPermissionsPayload
 ): GuildApplicationCommandPermissions {
-  const data = { ...(_data as any) }
+  const data: Record<string, unknown> = { ..._data }
   data.applicationID = data.application_id
   data.guildID = data.guild_id
   delete data.application_id
   delete data.guild_id
-  return data
+  return data as unknown as GuildApplicationCommandPermissions
 }
 
 export class ApplicationCommandPermissionsManager {
@@ -380,7 +392,7 @@ export class ApplicationCommandPermissionsManager {
     if (guild === undefined) throw new Error('Guild argument not provided')
     const data = await this.rest.api.applications[this.slash.getID()].guilds[
       typeof guild === 'string' ? guild : guild.id
-    ].commands.permissions.patch(
+    ].commands.permissions.put(
       permissions.map(transformApplicationCommandPermissions)
     )
     return data.map(transformApplicationCommandPermissionsPayload)

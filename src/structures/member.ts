@@ -1,6 +1,6 @@
 import { MemberRolesManager } from '../managers/memberRoles.ts'
 import type { Client } from '../client/mod.ts'
-import { GUILD_MEMBER } from '../types/endpoint.ts'
+import { GUILD_MEMBER, GUILD_MEMBER_AVATAR } from '../types/endpoint.ts'
 import type { MemberPayload } from '../types/guild.ts'
 import { Permissions } from '../utils/permissions.ts'
 import { SnowflakeBase } from './base.ts'
@@ -8,6 +8,8 @@ import type { Guild } from './guild.ts'
 import type { VoiceChannel } from './guildVoiceChannel.ts'
 import type { Role } from './role.ts'
 import type { User } from './user.ts'
+import { ImageURL } from './cdn.ts'
+import type { ImageSize, ImageFormats } from '../types/cdn.ts'
 
 export interface MemberData {
   nick?: string | null
@@ -18,14 +20,14 @@ export interface MemberData {
 }
 
 export class Member extends SnowflakeBase {
-  id: string
   user: User
-  nick: string | null
+  nick!: string | null
+  avatar!: string | null
   roles: MemberRolesManager
-  joinedAt: string
+  joinedAt!: string
   premiumSince?: string
-  deaf: boolean
-  mute: boolean
+  deaf!: boolean
+  mute!: boolean
   guild: Guild
   permissions: Permissions
 
@@ -38,14 +40,10 @@ export class Member extends SnowflakeBase {
   ) {
     super(client)
     this.id = data.user.id
+    this.readFromData(data)
     this.user = user
-    this.nick = data.nick
     this.guild = guild
     this.roles = new MemberRolesManager(this.client, this.guild.roles, this)
-    this.joinedAt = data.joined_at
-    this.premiumSince = data.premium_since
-    this.deaf = data.deaf
-    this.mute = data.mute
     if (perms !== undefined) this.permissions = perms
     else this.permissions = new Permissions(Permissions.DEFAULT)
   }
@@ -60,6 +58,7 @@ export class Member extends SnowflakeBase {
 
   readFromData(data: MemberPayload): void {
     this.nick = data.nick ?? this.nick
+    this.avatar = data.avatar ?? this.avatar
     this.joinedAt = data.joined_at ?? this.joinedAt
     this.premiumSince = data.premium_since ?? this.premiumSince
     this.deaf = data.deaf ?? this.deaf
@@ -183,18 +182,17 @@ export class Member extends SnowflakeBase {
    * Kicks the member.
    */
   async kick(reason?: string): Promise<boolean> {
-    const resp = await this.client.rest.delete(
+    await this.client.rest.delete(
       GUILD_MEMBER(this.guild.id, this.id),
       undefined,
       undefined,
       null,
-      true,
+      undefined,
       {
         reason
       }
     )
-    if (resp.ok !== true) return false
-    else return true
+    return true
   }
 
   /**
@@ -206,31 +204,48 @@ export class Member extends SnowflakeBase {
     return this.guild.bans.add(this.id, reason, deleteOldMessages)
   }
 
-  async manageable(): Promise<boolean> {
-    if (this.id === this.guild.ownerID || this.id === this.client.user?.id)
-      return false
-    if (this.guild.ownerID === this.client.user?.id) return true
-    const me = await this.guild.me()
-    const highestMe = (await me.roles.array()).sort(
+  async manageable(by?: Member): Promise<boolean> {
+    by = by ?? (await this.guild.me())
+    if (this.id === this.guild.ownerID || this.id === by.id) return false
+    if (this.guild.ownerID === by.id) return true
+    const highestBy = (await by.roles.array()).sort(
       (b, a) => a.position - b.position
     )[0]
     const highest = (await this.roles.array()).sort(
       (b, a) => a.position - b.position
     )[0]
-    return highestMe.position > highest.position
+    return highestBy.position > highest.position
   }
 
-  async bannable(): Promise<boolean> {
-    const manageable = await this.manageable()
+  async bannable(by?: Member): Promise<boolean> {
+    const manageable = await this.manageable(by)
     if (!manageable) return false
-    const me = await this.guild.me()
+    const me = by ?? (await this.guild.me())
     return me.permissions.has('BAN_MEMBERS')
   }
 
-  async kickable(): Promise<boolean> {
-    const manageable = await this.manageable()
+  async kickable(by?: Member): Promise<boolean> {
+    const manageable = await this.manageable(by)
     if (!manageable) return false
-    const me = await this.guild.me()
+    const me = by ?? (await this.guild.me())
     return me.permissions.has('KICK_MEMBERS')
+  }
+
+  avatarURL(format: ImageFormats = 'png', size: ImageSize = 512): string {
+    return this.avatar !== null && this.avatar !== undefined
+      ? `${ImageURL(
+          GUILD_MEMBER_AVATAR(this.guild.id, this.user.id, this.avatar),
+          format,
+          size
+        )}`
+      : this.user.avatarURL(format, size)
+  }
+
+  async effectiveColor(): Promise<number> {
+    return (
+      (await this.roles.array())
+        .sort((a, b) => b.position - a.position)
+        .find((r) => r.color !== 0)?.color ?? 0
+    )
   }
 }

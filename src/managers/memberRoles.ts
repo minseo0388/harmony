@@ -11,7 +11,7 @@ export class MemberRolesManager extends BaseChildManager<RolePayload, Role> {
   member: Member
 
   constructor(client: Client, parent: RolesManager, member: Member) {
-    super(client, parent as any)
+    super(client, parent)
     this.member = member
   }
 
@@ -46,12 +46,12 @@ export class MemberRolesManager extends BaseChildManager<RolePayload, Role> {
   }
 
   async array(): Promise<Role[]> {
-    const arr = (await this.parent.array()) as Role[]
+    const arr = await this.parent.array()
     const mem = await this._resolveMemberPayload()
     return arr.filter(
-      (c: any) =>
+      (c) =>
         (mem.roles.includes(c.id) as boolean) || c.id === this.member.guild.id
-    ) as any
+    )
   }
 
   async flush(): Promise<boolean> {
@@ -62,8 +62,8 @@ export class MemberRolesManager extends BaseChildManager<RolePayload, Role> {
     return true
   }
 
-  async add(role: string | Role): Promise<boolean> {
-    const res = await this.client.rest.put(
+  async add(role: string | Role, reason?: string): Promise<boolean> {
+    await this.client.rest.put(
       GUILD_MEMBER_ROLE(
         this.member.guild.id,
         this.member.id,
@@ -72,25 +72,22 @@ export class MemberRolesManager extends BaseChildManager<RolePayload, Role> {
       undefined,
       undefined,
       undefined,
-      true
+      undefined,
+      { reason }
     )
 
-    return res.response.status === 204
+    return true
   }
 
   async remove(role: string | Role): Promise<boolean> {
-    const res = await this.client.rest.delete(
+    await this.client.rest.delete(
       GUILD_MEMBER_ROLE(
         this.member.guild.id,
         this.member.id,
         typeof role === 'string' ? role : role.id
-      ),
-      undefined,
-      undefined,
-      undefined,
-      true
+      )
     )
 
-    return res.response.status === 204
+    return true
   }
 }

@@ -25,6 +25,7 @@ import type { DMChannel } from '../structures/dmChannel.ts'
 import { Template } from '../structures/template.ts'
 import { VoiceManager } from './voice.ts'
 import { StickersManager } from '../managers/stickers.ts'
+import { createOAuthURL, OAuthURLOptions } from '../utils/oauthURL.ts'
 
 /** OS related properties sent with Gateway Identify */
 export interface ClientProperties {
@@ -273,11 +274,18 @@ export class Client extends HarmonyEventEmitter<ClientEvents> {
   }
 
   /** Changes Presence of Client */
-  setPresence(presence: ClientPresence | ClientActivity | ActivityGame): void {
+  setPresence(
+    presence: ClientPresence | ClientActivity | ActivityGame,
+    onlyInShards: number[] = []
+  ): void {
     if (presence instanceof ClientPresence) {
       this.presence = presence
     } else this.presence = new ClientPresence(presence)
-    this.gateway?.sendPresence(this.presence.create())
+    this.shards.list.forEach((shard) => {
+      if (onlyInShards.length !== 0 && onlyInShards.includes(shard.shardID))
+        return
+      shard.sendPresence(this.presence.create())
+    })
   }
 
   /** Emits debug event */
@@ -361,7 +369,7 @@ export class Client extends HarmonyEventEmitter<ClientEvents> {
     this.gateway.sessionID = undefined
     await this.gateway.cache.delete('seq')
     await this.gateway.cache.delete('session_id')
-    this.gateway.close()
+    this.shards.destroy()
     this.user = undefined
     this.upSince = undefined
     return this
@@ -393,7 +401,7 @@ export class Client extends HarmonyEventEmitter<ClientEvents> {
   }
 
   async emit(event: keyof ClientEvents, ...args: any[]): Promise<void> {
-    const collectors: Collector[] = []
+    const collectors: Array<Collector<unknown[]>> = []
     for (const collector of this.collectors.values()) {
       if (collector.event === event) collectors.push(collector)
     }
@@ -456,6 +464,18 @@ export class Client extends HarmonyEventEmitter<ClientEvents> {
   async fetchTemplate(code: string): Promise<Template> {
     const payload = await this.rest.api.guilds.templates[code].get()
     return new Template(this, payload)
+  }
+
+  /** Creates an OAuth2 URL */
+  createOAuthURL(options: Omit<OAuthURLOptions, 'clientID'>): string {
+    return createOAuthURL(
+      Object.assign(
+        {
+          clientID: this.getEstimatedID()
+        },
+        options
+      )
+    )
   }
 }
 

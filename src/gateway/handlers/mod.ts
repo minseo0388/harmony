@@ -60,14 +60,10 @@ import type {
 } from '../../utils/channel.ts'
 import { interactionCreate } from './interactionCreate.ts'
 import type { Interaction } from '../../structures/interactions.ts'
-import type { CommandContext } from '../../commands/command.ts'
+import type { CommandContext, ParsedCommand } from '../../commands/command.ts'
 import type { RequestMethods } from '../../rest/types.ts'
 import type { PartialInvitePayload } from '../../types/invite.ts'
 import type { GuildChannels } from '../../types/guild.ts'
-import { applicationCommandCreate } from './applicationCommandCreate.ts'
-import { applicationCommandDelete } from './applicationCommandDelete.ts'
-import { applicationCommandUpdate } from './applicationCommandUpdate.ts'
-import type { ApplicationCommand } from '../../interactions/applicationCommand.ts'
 import type {
   ThreadChannel,
   ThreadMember
@@ -85,9 +81,6 @@ export const gatewayHandlers: {
   [eventCode in GatewayEvents]: GatewayEventHandler | undefined
 } = {
   READY: ready,
-  APPLICATION_COMMAND_CREATE: applicationCommandCreate,
-  APPLICATION_COMMAND_DELETE: applicationCommandDelete,
-  APPLICATION_COMMAND_UPDATE: applicationCommandUpdate,
   RECONNECT: reconnect,
   RESUMED: resume,
   CHANNEL_CREATE: channelCreate,
@@ -399,6 +392,8 @@ export type ClientEvents = {
    */
   debug: [message: string]
 
+  // This event uses any because payload is literally JSON object
+  // sent by Discord. unknown breaks a lot of things.
   /**
    * Raw event which gives you access to raw events DISPATCH'd from Gateway
    * @param evt Event name string
@@ -439,12 +434,6 @@ export type ClientEvents = {
   guildMemberUpdateUncached: [member: Member]
   guildMemberRemoveUncached: [member: Member]
   channelUpdateUncached: [channel: GuildChannels]
-  applicationCommandCreate: [cmd: ApplicationCommand]
-  applicationCommandUpdate: [cmd: ApplicationCommand]
-  applicationCommandDelete: [cmd: ApplicationCommand]
-  slashCommandCreate: [cmd: ApplicationCommand]
-  slashCommandUpdate: [cmd: ApplicationCommand]
-  slashCommandDelete: [cmd: ApplicationCommand]
   commandOwnerOnly: [ctx: CommandContext]
   commandGuildOnly: [ctx: CommandContext]
   commandDmOnly: [ctx: CommandContext]
@@ -454,7 +443,9 @@ export type ClientEvents = {
   commandMissingArgs: [ctx: CommandContext]
   commandUsed: [ctx: CommandContext]
   commandError: [ctx: CommandContext, err: Error]
+  commandNotFound: [msg: Message, parsedCmd: ParsedCommand]
   gatewayError: [err: ErrorEvent, shards: [number, number]]
+  error: [error: Error]
 
   threadCreate: [thread: ThreadChannel]
   threadDelete: [thread: ThreadChannel]

@@ -16,7 +16,7 @@ import { BaseManager } from './base.ts'
 import { transformComponent } from '../utils/components.ts'
 import { Collection } from '../utils/collection.ts'
 
-export type AllMessageOptions = MessageOptions | Embed
+export type AllMessageOptions = MessageOptions | Embed | Embed[]
 
 export class ChannelsManager extends BaseManager<ChannelPayload, Channel> {
   constructor(client: Client) {
@@ -39,7 +39,7 @@ export class ChannelsManager extends BaseManager<ChannelPayload, Channel> {
   }
 
   // Override get method as Generic
-  async get<T = Channel>(key: string): Promise<T | undefined> {
+  async get<T extends Channel = Channel>(key: string): Promise<T | undefined> {
     const data = await this._get(key)
     if (data === undefined) return
     let guild
@@ -50,7 +50,7 @@ export class ChannelsManager extends BaseManager<ChannelPayload, Channel> {
       )
     }
     const res = getChannelByType(this.client, data, guild)
-    return res as any
+    return res as T
   }
 
   async array(): Promise<Channel[]> {
@@ -58,16 +58,15 @@ export class ChannelsManager extends BaseManager<ChannelPayload, Channel> {
       this.cacheName
     ) as ChannelPayload[])
     if (arr === undefined) return []
-    const result: any[] = []
+    const result = []
     for (const elem of arr) {
       let guild
       if ('guild_id' in elem) {
         guild = await this.client.guilds.get(
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-          (elem as GuildChannelPayload).guild_id
+          (elem as unknown as GuildChannelPayload).guild_id
         )
       }
-      result.push(getChannelByType(this.client, elem, guild))
+      result.push(getChannelByType(this.client, elem, guild)!)
     }
     return result
   }
@@ -114,10 +113,16 @@ export class ChannelsManager extends BaseManager<ChannelPayload, Channel> {
         embed: option
       }
     }
+    if (Array.isArray(option)) {
+      option = {
+        embeds: option
+      }
+    }
 
-    const payload: any = {
+    const payload = {
       content: content ?? option?.content,
       embed: option?.embed,
+      embeds: option?.embeds,
       file: option?.file,
       files: option?.files,
       tts: option?.tts,
@@ -155,10 +160,9 @@ export class ChannelsManager extends BaseManager<ChannelPayload, Channel> {
     )
     const chan =
       typeof channel === 'string'
-        ? // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          (await this.get<TextChannel>(channel))!
+        ? (await this.get<TextChannel>(channel))!
         : channel
-    const res = new Message(this.client, resp, chan, this.client.user as any)
+    const res = new Message(this.client, resp, chan, this.client.user!)
     await res.mentions.fromPayload(resp)
     return res
   }
@@ -189,7 +193,8 @@ export class ChannelsManager extends BaseManager<ChannelPayload, Channel> {
       typeof message === 'string' ? message : message.id
     ].patch({
       content: text ?? option?.content,
-      embed: option?.embed !== undefined ? option.embed.toJSON() : undefined,
+      embed: option?.embed !== undefined ? option.embed : undefined,
+      embeds: option?.embeds,
       // Cannot upload new files with Message
       // file: option?.file,
       tts: option?.tts,
