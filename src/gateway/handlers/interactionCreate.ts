@@ -30,6 +30,7 @@ import { TextChannel } from '../../structures/textChannel.ts'
 import { MessagePayload } from '../../types/channel.ts'
 import { GuildPayload, MemberPayload } from '../../types/guild.ts'
 import { AutocompleteInteraction } from '../../structures/autocompleteInteraction.ts'
+import { ModalSubmitInteraction } from '../../structures/modalSubmitInteraction.ts'
 
 export const interactionCreate: GatewayEventHandler = async (
   gateway: Gateway,
@@ -65,6 +66,9 @@ export const interactionCreate: GatewayEventHandler = async (
           new Permissions(d.member.permissions)
         )
       : undefined
+  if (member !== undefined) {
+    member.permissions.bitfield = BigInt(d.member!.permissions!)
+  }
   if (d.user !== undefined) await gateway.client.users.set(d.user.id, d.user)
   const dmUser =
     d.user !== undefined ? await gateway.client.users.get(d.user.id) : undefined
@@ -201,6 +205,13 @@ export const interactionCreate: GatewayEventHandler = async (
       channel,
       user,
       message
+    })
+  } else if (d.type === InteractionType.MODAL_SUBMIT) {
+    interaction = new ModalSubmitInteraction(gateway.client, d, {
+      member,
+      guild,
+      channel,
+      user
     })
   } else {
     interaction = new Interaction(gateway.client, d, {

@@ -20,11 +20,11 @@ export class MyClient extends Client {
       this.interactions.commands.bulkEdit([
         {
           name: 'ping',
-          description: "It's literally ping command. What did you expect?",
+          description: "It's literally a ping command. What did you expect?",
           options: [
             {
               name: 'pingarg',
-              description: 'Again literally pingArg',
+              description: 'Again, literally pingArg',
               required: false,
               type: ApplicationCommandOptionType.STRING
             }
@@ -32,7 +32,7 @@ export class MyClient extends Client {
         },
         {
           name: 'hello',
-          description: 'Is is nice to be greeted',
+          description: 'It is nice to be greeted',
           options: [
             {
               name: 'target',
@@ -61,7 +61,7 @@ export class MyClient extends Client {
   }
 
   @slash()
-  //Only allow this command if the user passed the parameter 'bot' or the bot's username
+  // Only allow this command if the user passed the parameter 'bot' or the bot's username
   @customValidation(
     (i) =>
       ['bot', i.client.user!.username].includes(i.option<string>('target')),
@@ -72,7 +72,7 @@ export class MyClient extends Client {
   }
 
   @slash()
-  //Only allow this command if the user is in a voice channel
+  // Only allow this command if the user is in a voice channel
   @isUserInVoiceChannel('You must be in a voice channel to use this command')
   async join(d: ApplicationCommandInteraction): Promise<void> {
     const vs = await d.guild!.voiceStates.get(d.user.id)
@@ -82,7 +82,7 @@ export class MyClient extends Client {
   }
 
   @slash()
-  //Only allow this command if the bot is in a voice channel
+  // Only allow this command if the bot is in a voice channel
   @isBotInVoiceChannel("I'm not in a voice channel")
   async leave(d: ApplicationCommandInteraction): Promise<void> {
     const vs = await d.guild!.voiceStates.get(d.client.user!.id)
