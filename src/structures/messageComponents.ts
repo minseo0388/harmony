@@ -2,13 +2,17 @@ import {
   ButtonStyle,
   InteractionMessageComponentData,
   MessageComponentData,
-  MessageComponentEmoji,
-  MessageComponentOption,
-  MessageComponentType
+  MessageComponentType,
+  ButtonComponent,
+  SelectComponent,
+  TextInputComponent
 } from '../types/messageComponents.ts'
-import { Interaction } from './interactions.ts'
+import { Interaction, InteractionMessageOptions } from './interactions.ts'
 import type { Client } from '../client/mod.ts'
-import { InteractionPayload } from '../types/interactions.ts'
+import {
+  InteractionPayload,
+  InteractionResponseType
+} from '../types/interactions.ts'
 import type { Guild } from './guild.ts'
 import type { GuildTextChannel } from './guildTextChannel.ts'
 import type { Member } from './member.ts'
@@ -21,42 +25,38 @@ export class MessageComponents extends Array<MessageComponentData> {
     const components = new MessageComponents()
     cb(components)
     this.push({
-      type: MessageComponentType.ActionRow,
-      components
+      type: MessageComponentType.ACTION_ROW,
+      components: this as MessageComponentData[]
     })
     return this
   }
 
-  button(options: {
-    label?: string
-    style?: ButtonStyle | keyof typeof ButtonStyle
-    url?: string
-    emoji?: MessageComponentEmoji
-    disabled?: boolean
-    customID?: string
-  }): this {
+  button(options: Omit<ButtonComponent, 'type'>): this {
     if (options.style !== ButtonStyle.LINK && options.customID === undefined)
       throw new Error('customID is required for non-link buttons')
     if (options.style === ButtonStyle.LINK && options.url === undefined)
       throw new Error('url is required for link buttons')
 
     this.push({
-      type: MessageComponentType.Button,
+      type: MessageComponentType.BUTTON,
       ...options
     })
 
     return this
   }
 
-  select(options: {
-    options: MessageComponentOption[]
-    placeholder?: string
-    customID: string
-    minValues?: number
-    maxValues?: number
-  }): this {
+  select(options: Omit<SelectComponent, 'type'>): this {
     this.push({
-      type: MessageComponentType.Select,
+      type: MessageComponentType.SELECT,
+      ...options
+    })
+
+    return this
+  }
+
+  textInput(options: Omit<TextInputComponent, 'type'>): this {
+    this.push({
+      type: MessageComponentType.TEXT_INPUT,
       ...options
     })
 
@@ -67,6 +67,8 @@ export class MessageComponents extends Array<MessageComponentData> {
 export class MessageComponentInteraction extends Interaction {
   data: InteractionMessageComponentData
   declare message: Message
+  declare locale: string
+  declare guildLocale: string
 
   constructor(
     client: Client,
@@ -96,5 +98,22 @@ export class MessageComponentInteraction extends Interaction {
 
   get values(): string[] {
     return this.data.values ?? []
+  }
+
+  /** Respond with DEFERRED_MESSAGE_UPDATE */
+  async deferredMessageUpdate(): Promise<void> {
+    await this.respond({
+      type: InteractionResponseType.DEFERRED_MESSAGE_UPDATE
+    })
+  }
+
+  /** Respond with UPDATE_MESSAGE */
+  async updateMessage(
+    options: Partial<InteractionMessageOptions>
+  ): Promise<void> {
+    await this.respond({
+      type: InteractionResponseType.UPDATE_MESSAGE,
+      ...options
+    })
   }
 }

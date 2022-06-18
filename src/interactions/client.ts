@@ -9,17 +9,17 @@ import {
   InteractionType
 } from '../types/interactions.ts'
 import {
-  ApplicationCommandType,
   ApplicationCommandOptionType,
+  ApplicationCommandType,
   InteractionApplicationCommandData
 } from '../types/applicationCommand.ts'
 import type { Client } from '../client/mod.ts'
 import { RESTManager } from '../rest/mod.ts'
 import { ApplicationCommandsModule } from './commandModule.ts'
-import { verify as edverify } from 'https://deno.land/x/ed25519@1.0.1/mod.ts'
+import { edverify, decodeHex } from '../../deps.ts'
 import { User } from '../structures/user.ts'
 import { HarmonyEventEmitter } from '../utils/events.ts'
-import { encodeText, decodeText } from '../utils/encoding.ts'
+import { decodeText, encodeText } from '../utils/encoding.ts'
 import { ApplicationCommandsManager } from './applicationCommand.ts'
 import { Application } from '../structures/application.ts'
 import { Member } from '../structures/member.ts'
@@ -30,6 +30,8 @@ import { TextChannel } from '../structures/textChannel.ts'
 import { Role } from '../structures/role.ts'
 import { Message } from '../structures/message.ts'
 import { MessageComponentInteraction } from '../structures/messageComponents.ts'
+import { AutocompleteInteraction } from '../structures/autocompleteInteraction.ts'
+import { ModalSubmitInteraction } from '../structures/modalSubmitInteraction.ts'
 
 export type ApplicationCommandHandlerCallback = (
   interaction: ApplicationCommandInteraction
@@ -47,6 +49,14 @@ export interface ApplicationCommandHandler {
 // Deprecated
 export type { ApplicationCommandHandlerCallback as SlashCommandHandlerCallback }
 export type { ApplicationCommandHandler as SlashCommandHandler }
+
+export type AutocompleteHandlerCallback = (d: AutocompleteInteraction) => any
+
+export interface AutocompleteHandler {
+  cmd: string
+  option: string
+  handler: AutocompleteHandlerCallback
+}
 
 /** Options for InteractionsClient */
 export interface SlashOptions {
@@ -83,6 +93,7 @@ export class InteractionsClient extends HarmonyEventEmitter<InteractionsClientEv
   enabled: boolean = true
   commands: ApplicationCommandsManager
   handlers: ApplicationCommandHandler[] = []
+  autocompleteHandlers: AutocompleteHandler[] = []
   readonly rest!: RESTManager
   modules: ApplicationCommandsModule[] = []
   publicKey?: string
@@ -91,8 +102,9 @@ export class InteractionsClient extends HarmonyEventEmitter<InteractionsClientEv
     super()
     let id = options.id
     if (options.token !== undefined) id = atob(options.token?.split('.')[0])
-    if (id === undefined)
+    if (id === undefined) {
       throw new Error('ID could not be found. Pass at least client or token')
+    }
     this.id = id
 
     if (options.client !== undefined) {
@@ -108,19 +120,40 @@ export class InteractionsClient extends HarmonyEventEmitter<InteractionsClientEv
     this.enabled = options.enabled ?? true
 
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-    const client = this.client as any
+    const client = this.client as unknown as {
+      _decoratedAppCmd: ApplicationCommandHandler[]
+      _decoratedAutocomplete: AutocompleteHandler[]
+    }
     if (client?._decoratedAppCmd !== undefined) {
-      client._decoratedAppCmd.forEach((e: any) => {
+      client._decoratedAppCmd.forEach((e) => {
         e.handler = e.handler.bind(this.client)
         this.handlers.push(e)
       })
     }
 
-    const self = this as any
+    if (client?._decoratedAutocomplete !== undefined) {
+      client._decoratedAutocomplete.forEach((e) => {
+        e.handler = e.handler.bind(this.client)
+        this.autocompleteHandlers.push(e)
+      })
+    }
+
+    const self = this as unknown as InteractionsClient & {
+      _decoratedAppCmd: ApplicationCommandHandler[]
+      _decoratedAutocomplete: AutocompleteHandler[]
+    }
+
     if (self._decoratedAppCmd !== undefined) {
-      self._decoratedAppCmd.forEach((e: any) => {
+      self._decoratedAppCmd.forEach((e) => {
         e.handler = e.handler.bind(this.client)
         self.handlers.push(e)
+      })
+    }
+
+    if (self._decoratedAutocomplete !== undefined) {
+      self._decoratedAutocomplete.forEach((e) => {
+        e.handler = e.handler.bind(this.client)
+        self.autocompleteHandlers.push(e)
       })
     }
 
@@ -148,12 +181,19 @@ export class InteractionsClient extends HarmonyEventEmitter<InteractionsClientEv
     return typeof this.id === 'string' ? this.id : this.id()
   }
 
-  /** Adds a new Slash Command Handler */
+  /** Adds a new Application Command Handler */
+  handle(cmd: ApplicationCommandHandler): this
+  handle(cmd: string, handler: ApplicationCommandHandlerCallback): this
+  handle(
+    cmd: string,
+    handler: ApplicationCommandHandlerCallback,
+    type: ApplicationCommandType | keyof typeof ApplicationCommandType
+  ): this
   handle(
     cmd: string | ApplicationCommandHandler,
     handler?: ApplicationCommandHandlerCallback,
     type?: ApplicationCommandType | keyof typeof ApplicationCommandType
-  ): InteractionsClient {
+  ): this {
     const handle = {
       name: typeof cmd === 'string' ? cmd : cmd.name,
       ...(handler !== undefined ? { handler } : {}),
@@ -165,8 +205,9 @@ export class InteractionsClient extends HarmonyEventEmitter<InteractionsClientEv
         typeof type === 'string' ? ApplicationCommandType[type] : type
     }
 
-    if (handle.handler === undefined)
+    if (handle.handler === undefined) {
       throw new Error('Invalid usage. Handler function not provided')
+    }
 
     if (
       (handle.type === undefined ||
@@ -177,8 +218,9 @@ export class InteractionsClient extends HarmonyEventEmitter<InteractionsClientEv
       handle.group === undefined
     ) {
       const parts = handle.name.split(/ +/).filter((e) => e !== '')
-      if (parts.length > 3 || parts.length < 1)
+      if (parts.length > 3 || parts.length < 1) {
         throw new Error('Invalid command name')
+      }
       const root = parts.shift() as string
       const group = parts.length === 2 ? parts.shift() : undefined
       const sub = parts.shift()
@@ -189,6 +231,26 @@ export class InteractionsClient extends HarmonyEventEmitter<InteractionsClientEv
     }
 
     this.handlers.push(handle as ApplicationCommandHandler)
+    return this
+  }
+
+  /**
+   * Add a handler for autocompletions (for application command options).
+   *
+   * @param cmd Command name. Can be `*`
+   * @param option Option name. Can be `*`
+   * @param handler Handler callback that is fired when a matching Autocomplete Interaction comes in.
+   */
+  autocomplete(
+    cmd: string,
+    option: string,
+    handler: AutocompleteHandlerCallback
+  ): this {
+    this.autocompleteHandlers.push({
+      cmd,
+      option,
+      handler
+    })
     return this
   }
 
@@ -232,7 +294,7 @@ export class InteractionsClient extends HarmonyEventEmitter<InteractionsClientEv
       const groupMatched =
         e.group !== undefined && e.parent !== undefined
           ? i.data.options
-              .find(
+              ?.find(
                 (o) =>
                   o.name === e.group &&
                   o.type === ApplicationCommandOptionType.SUB_COMMAND_GROUP
@@ -241,7 +303,7 @@ export class InteractionsClient extends HarmonyEventEmitter<InteractionsClientEv
           : true
       const subMatched =
         e.group === undefined && e.parent !== undefined
-          ? i.data.options.find(
+          ? i.data.options?.find(
               (o) =>
                 o.name === e.name &&
                 o.type === ApplicationCommandOptionType.SUB_COMMAND
@@ -262,37 +324,66 @@ export class InteractionsClient extends HarmonyEventEmitter<InteractionsClientEv
   ): Promise<void> {
     if (!this.enabled) return
 
-    if (interaction.type !== InteractionType.APPLICATION_COMMAND) return
+    await this.emit('interaction', interaction)
+
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+    if (interaction.isAutocomplete()) {
+      const handle = [
+        ...this.autocompleteHandlers,
+        ...this.modules.map((e) => e.autocomplete).flat()
+      ].find(
+        (e) =>
+          (e.cmd.toLowerCase() === interaction.name || e.cmd === '*') &&
+          (e.option === '*' ||
+            e.option.toLowerCase() ===
+              interaction.focusedOption?.name.toLowerCase())
+      )
+      try {
+        await handle?.handler(interaction)
+      } catch (e) {
+        await this.emit('interactionError', e as Error)
+      }
+      return
+    }
+
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+    if (!interaction.isApplicationCommand()) return
 
     const cmd =
-      this._getCommand(interaction as ApplicationCommandInteraction) ??
+      this._getCommand(interaction) ??
       this.getHandlers().find((e) => e.name === '*')
 
     if (cmd === undefined) return
 
-    await this.emit('interaction', interaction)
     try {
-      await cmd.handler(interaction as ApplicationCommandInteraction)
+      await cmd.handler(interaction)
     } catch (e) {
-      await this.emit('interactionError', e)
+      await this.emit('interactionError', e as Error)
     }
   }
 
   /** Verify HTTP based Interaction */
-  async verifyKey(
+  verifyKey(
     rawBody: string | Uint8Array,
     signature: string | Uint8Array,
     timestamp: string | Uint8Array
-  ): Promise<boolean> {
-    if (this.publicKey === undefined)
+  ): boolean {
+    if (this.publicKey === undefined) {
       throw new Error('Public Key is not present')
+    }
 
     const fullBody = new Uint8Array([
       ...(typeof timestamp === 'string' ? encodeText(timestamp) : timestamp),
       ...(typeof rawBody === 'string' ? encodeText(rawBody) : rawBody)
     ])
 
-    return edverify(signature, fullBody, this.publicKey).catch(() => false)
+    return edverify(
+      decodeHex(encodeText(this.publicKey)),
+      decodeHex(
+        signature instanceof Uint8Array ? signature : encodeText(signature)
+      ),
+      fullBody
+    )
   }
 
   /**
@@ -300,7 +391,6 @@ export class InteractionsClient extends HarmonyEventEmitter<InteractionsClientEv
    *
    * **Data present in Interaction returned by this method is very different from actual typings
    * as there is no real `Client` behind the scenes to cache things.**
-   *
    */
   async verifyServerRequest(req: {
     headers: Headers
@@ -357,7 +447,10 @@ export class InteractionsClient extends HarmonyEventEmitter<InteractionsClientEv
             new Member(client, payload.member, user, guild!)
           : undefined
 
-      if (payload.type === InteractionType.APPLICATION_COMMAND) {
+      if (
+        payload.type === InteractionType.APPLICATION_COMMAND ||
+        payload.type === InteractionType.AUTOCOMPLETE
+      ) {
         const resolved: InteractionApplicationCommandResolved = {
           users: {},
           members: {},
@@ -420,12 +513,28 @@ export class InteractionsClient extends HarmonyEventEmitter<InteractionsClientEv
           )
         }
 
-        res = new ApplicationCommandInteraction(client, payload, {
-          user,
-          member,
-          guild,
+        res =
+          payload.type === InteractionType.APPLICATION_COMMAND
+            ? new ApplicationCommandInteraction(client, payload, {
+                user,
+                member,
+                guild,
+                channel,
+                resolved
+              })
+            : new AutocompleteInteraction(client, payload, {
+                user,
+                member,
+                guild,
+                channel,
+                resolved
+              })
+      } else if (payload.type === InteractionType.MODAL_SUBMIT) {
+        res = new ModalSubmitInteraction(client, payload, {
           channel,
-          resolved
+          guild,
+          member,
+          user
         })
       } else if (payload.type === InteractionType.MESSAGE_COMPONENT) {
         res = new MessageComponentInteraction(client, payload, {
@@ -477,8 +586,7 @@ export class InteractionsClient extends HarmonyEventEmitter<InteractionsClientEv
   }): Promise<false | Interaction> {
     if (req.bodyUsed === true) throw new Error('Request Body already used')
     if (req.body === null) return false
-    const body = (await req.body.getReader().read()).value
-    if (body === undefined) return false
+    const body = new Uint8Array(await req.arrayBuffer())
 
     return await this.verifyServerRequest({
       headers: req.headers,
@@ -505,8 +613,9 @@ export class InteractionsClient extends HarmonyEventEmitter<InteractionsClientEv
     const timestamp = req.headers.get('x-signature-timestamp')
     const contentLength = req.headers.get('content-length')
 
-    if (signature === null || timestamp === null || contentLength === null)
+    if (signature === null || timestamp === null || contentLength === null) {
       return false
+    }
 
     const body = new Uint8Array(parseInt(contentLength))
     await req.body.read(body)

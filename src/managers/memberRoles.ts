@@ -69,7 +69,7 @@ export class MemberRolesManager extends BaseChildManager<RolePayload, Role> {
         this.member.id,
         typeof role === 'string' ? role : role.id
       ),
-      undefined,
+      { reason },
       undefined,
       undefined,
       undefined,
@@ -79,13 +79,18 @@ export class MemberRolesManager extends BaseChildManager<RolePayload, Role> {
     return true
   }
 
-  async remove(role: string | Role): Promise<boolean> {
+  async remove(role: string | Role, reason?: string): Promise<boolean> {
     await this.client.rest.delete(
       GUILD_MEMBER_ROLE(
         this.member.guild.id,
         this.member.id,
         typeof role === 'string' ? role : role.id
-      )
+      ),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { reason }
     )
 
     return true

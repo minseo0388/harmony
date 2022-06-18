@@ -19,10 +19,9 @@ import {
 import { TOKEN } from './config.ts'
 
 const client = new Client({
-  // clientProperties: {
-  //   browser: 'Discord iOS'
-  // }
-  // bot: false,
+  clientProperties: {
+    browser: 'Discord iOS'
+  }
   // cache: new RedisCacheAdapter({
   //   hostname: '127.0.0.1',
   //   port: 6379
@@ -30,11 +29,24 @@ const client = new Client({
   // shardCount: 2
 })
 
-client.on('ready', () => {
-  console.log(`[Login] Logged in as ${client.user?.tag}!`)
-})
+client.interactions.handle('modal', async (i) =>
+  i
+    .reply({
+      content: 'hi',
+      files: [
+        await MessageAttachment.load(
+          'https://cdn.discordapp.com/emojis/827755526128402493.png',
+          'file.png',
+          'description'
+        )
+      ],
+      ephemeral: true
+    })
+    .then((i) => i.fetchResponse())
+    .then(console.log)
+)
 
-client.on('debug', console.log)
+client.interactions.on('interactionError', console.error)
 
 client.on('threadCreate', (t) => console.log('Thread Create', t))
 client.on('threadDelete', (t) => console.log('Thread Delete', t))
@@ -158,9 +170,18 @@ client.on('messageCreate', async (msg: Message) => {
     )
   } else if (msg.content === '!attach') {
     msg.channel.send({
-      file: await MessageAttachment.load(
-        'https://cdn.discordapp.com/emojis/626139395623354403.png?v=1'
-      )
+      files: [
+        await MessageAttachment.load(
+          'https://cdn.discordapp.com/emojis/626139395623354403.png?v=1',
+          'very_emoji.png',
+          'much description'
+        ),
+        await MessageAttachment.load(
+          'https://cdn.discordapp.com/emojis/626139395623354403.png?v=1',
+          'test2.png',
+          'yes'
+        )
+      ]
     })
   } else if (msg.content === '!emattach') {
     msg.channel.send(
@@ -319,6 +340,24 @@ client.on('messageCreate', async (msg: Message) => {
     } else {
       msg.channel.send(msg.author.avatarURL())
     }
+  } else if (msg.content.startsWith('!roleIcon') === true) {
+    const size = msg.mentions.roles.size
+    const role = msg.mentions.roles.first()
+    const icon = role?.roleIcon()
+    if (size === 0) {
+      msg.channel.send('no role mentioned')
+    } else {
+      if (icon === undefined) {
+        msg.channel.send('no icon')
+      } else {
+        msg.channel.send(icon)
+      }
+    }
+  } else if (msg.content === '!roleSmile') {
+    const role = await msg.guild?.roles.get('834440844270501888')
+    if (role !== undefined) {
+      role.edit({ unicodeEmoji: '😀' })
+    }
   } else if (msg.content === '!color') {
     msg.channel.send(
       msg.member !== undefined
@@ -337,7 +376,8 @@ client.on('messageReactionRemove', (reaction, user) => {
   }
 })
 
-client.connect(TOKEN, Intents.None)
+await client.connect(TOKEN, Intents.None)
+console.log(`[Login] Logged in as ${client.user?.tag}!`)
 
 // OLD: Was a way to reproduce reconnect infinite loop
 // setTimeout(() => {

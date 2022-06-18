@@ -375,7 +375,8 @@ export class CommandClient extends Client implements CommandClientOptions {
 
     if (
       command.args !== undefined &&
-      (parsed.args.length === 0 || parsed.args.length < command.args.length)
+      parsed.args.length === 0 &&
+      command.optionalArgs !== true
     ) {
       try {
         return command.onMissingArgs(ctx)
@@ -394,11 +395,11 @@ export class CommandClient extends Client implements CommandClientOptions {
         await command.afterExecute(ctx, result)
       } catch (e) {
         try {
-          await command.onError(ctx, e)
+          await command.onError(ctx, e as Error)
         } catch (e) {
-          this.emit('commandError', ctx, e)
+          this.emit('commandError', ctx, e as Error)
         }
-        this.emit('commandError', ctx, e)
+        this.emit('commandError', ctx, e as Error)
       }
     }
 

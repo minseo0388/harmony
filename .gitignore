@@ -124,3 +124,7 @@ src/test/music.mp3
 .vscode/
 test/dd.ts
 /test/dd.ts
+
+test/pokemon.json
+
+*.rdb
