@@ -1,6 +1,5 @@
 import {
   Client,
-  Intents,
   Message,
   Member,
   GuildChannels,
@@ -9,19 +8,26 @@ import {
   EveryChannelTypes,
   ChannelTypes,
   GuildTextChannel,
-  checkGuildTextBasedChannel,
   Permissions,
   Collector,
   MessageAttachment,
   OverrideType,
-  ColorUtil
+  ColorUtil,
+  isGuildBasedTextChannel
 } from '../mod.ts'
-import { TOKEN } from './config.ts'
+// import { TOKEN } from './config.ts'
 
 const client = new Client({
   clientProperties: {
     browser: 'Discord iOS'
-  }
+  },
+  intents: [
+    'GUILDS',
+    'DIRECT_MESSAGES',
+    'GUILD_MESSAGES',
+    'GUILD_MEMBERS',
+    'GUILD_PRESENCES'
+  ]
   // cache: new RedisCacheAdapter({
   //   hostname: '127.0.0.1',
   //   port: 6379
@@ -213,7 +219,7 @@ client.on('messageCreate', async (msg: Message) => {
     vs.channel?.join()
   } else if (msg.content === '!getOverwrites') {
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (!checkGuildTextBasedChannel(msg.channel)) {
+    if (!isGuildBasedTextChannel(msg.channel)) {
       return msg.channel.send("This isn't a guild text channel!")
     }
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
@@ -245,7 +251,7 @@ client.on('messageCreate', async (msg: Message) => {
     msg.channel.send(`Your permissions:\n${permissions.toArray().join('\n')}`)
   } else if (msg.content === '!addBasicOverwrites') {
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (!checkGuildTextBasedChannel(msg.channel)) {
+    if (!isGuildBasedTextChannel(msg.channel)) {
       return msg.channel.send("This isn't a guild text channel!")
     }
     if (msg.member !== undefined) {
@@ -257,7 +263,7 @@ client.on('messageCreate', async (msg: Message) => {
     }
   } else if (msg.content === '!updateBasicOverwrites') {
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (!checkGuildTextBasedChannel(msg.channel)) {
+    if (!isGuildBasedTextChannel(msg.channel)) {
       return msg.channel.send("This isn't a guild text channel!")
     }
     if (msg.member !== undefined) {
@@ -364,6 +370,10 @@ client.on('messageCreate', async (msg: Message) => {
         ? ColorUtil.intToHex(await msg.member.effectiveColor())
         : 'not in a guild'
     )
+  } else if (msg.content === '!presence') {
+    if (msg.guild === undefined) return
+    const presence = await msg.guild.presences.resolve(msg.author.id)
+    msg.reply(`Status: ${presence?.status}`)
   }
 })
 
@@ -376,7 +386,7 @@ client.on('messageReactionRemove', (reaction, user) => {
   }
 })
 
-await client.connect(TOKEN, Intents.None)
+await client.connect()
 console.log(`[Login] Logged in as ${client.user?.tag}!`)
 
 // OLD: Was a way to reproduce reconnect infinite loop

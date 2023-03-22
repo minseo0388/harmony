@@ -16,7 +16,6 @@ import { CHANNEL_MESSAGE } from '../types/endpoint.ts'
 import { MessageMentions } from './messageMentions.ts'
 import type { TextChannel } from './textChannel.ts'
 import type {
-  CreateThreadOptions,
   GuildTextBasedChannel,
   GuildTextChannel
 } from './guildTextChannel.ts'
@@ -29,6 +28,7 @@ import { encodeText } from '../utils/encoding.ts'
 import { MessageComponentData } from '../types/messageComponents.ts'
 import { transformComponentPayload } from '../utils/components.ts'
 import type { ThreadChannel } from './threadChannel.ts'
+import { CreateThreadOptions } from './guildThreadAvailableChannel.ts'
 
 type AllMessageOptions = MessageOptions | Embed
 
@@ -77,6 +77,10 @@ export class Message extends SnowflakeBase {
 
   get createdAt(): Date {
     return this.createdTimestamp // new Date(this.timestamp)
+  }
+
+  get url(): string {
+    return CHANNEL_MESSAGE(this.channelID, this.id)
   }
 
   constructor(
@@ -132,8 +136,9 @@ export class Message extends SnowflakeBase {
   }
 
   async updateRefs(): Promise<void> {
-    if (this.guildID !== undefined)
+    if (this.guildID !== undefined) {
       this.guild = await this.client.guilds.get(this.guildID)
+    }
     const newVal = await this.client.channels.get<TextChannel>(this.channelID)
     if (newVal !== undefined) this.channel = newVal
     const newUser = await this.client.users.get(this.author.id)
@@ -142,10 +147,14 @@ export class Message extends SnowflakeBase {
       const newMember = await this.guild?.members.get(this.member?.id)
       if (newMember !== undefined) this.member = newMember
     }
-    if ((this.channel as unknown as GuildTextBasedChannel).guild !== undefined)
+    if (
+      (this.channel as unknown as GuildTextBasedChannel).guild !== undefined
+    ) {
       this.guild = (this.channel as unknown as GuildTextBasedChannel).guild
-    if (this.guild !== undefined && this.guildID === undefined)
+    }
+    if (this.guild !== undefined && this.guildID === undefined) {
       this.guildID = this.guild.id
+    }
   }
 
   /** Edits this message. */
@@ -162,7 +171,7 @@ export class Message extends SnowflakeBase {
     }
     if (option instanceof Embed) {
       option = {
-        embed: option
+        embeds: [option]
       }
     }
     if (

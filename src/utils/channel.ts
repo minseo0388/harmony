@@ -5,6 +5,7 @@ import {
   DMChannelPayload,
   GroupDMChannelPayload,
   GuildCategoryChannelPayload,
+  GuildForumChannelPayload,
   GuildNewsChannelPayload,
   GuildStageChannelPayload,
   GuildTextBasedChannelPayload,
@@ -28,6 +29,7 @@ import { Channel, GuildChannel } from '../structures/channel.ts'
 import { StoreChannel } from '../structures/guildStoreChannel.ts'
 import { StageVoiceChannel } from '../structures/guildStageVoiceChannel.ts'
 import { ThreadChannel } from '../structures/threadChannel.ts'
+import { GuildForumChannel } from '../structures/guildForumChannel.ts'
 
 export type EveryTextChannelTypes =
   | TextChannel
@@ -37,6 +39,17 @@ export type EveryTextChannelTypes =
   | DMChannel
   | GroupDMChannel
   | ThreadChannel
+  | VoiceChannel
+
+export type EveryGuildThreadAvailableChannelTypes =
+  | GuildTextChannel
+  | NewsChannel
+  | GuildForumChannel
+
+export type EveryGuildThreadAvailableChannelPayloadTypes =
+  | GuildTextChannelPayload
+  | GuildNewsChannelPayload
+  | GuildForumChannelPayload
 
 export type EveryTextChannelPayloadTypes =
   | TextChannelPayload
@@ -46,21 +59,22 @@ export type EveryTextChannelPayloadTypes =
   | DMChannelPayload
   | GroupDMChannelPayload
   | ThreadChannelPayload
+  | GuildVoiceChannelPayload
 
 export type EveryChannelTypes =
   | Channel
   | GuildChannel
   | CategoryChannel
-  | VoiceChannel
   | StageVoiceChannel
   | EveryTextChannelTypes
+  | EveryGuildThreadAvailableChannelTypes
 
 export type EveryChannelPayloadTypes =
   | ChannelPayload
   | GuildCategoryChannelPayload
-  | GuildVoiceChannelPayload
   | GuildStageChannelPayload
   | EveryTextChannelPayloadTypes
+  | EveryGuildThreadAvailableChannelPayloadTypes
 
 /** Get appropriate Channel structure by its type */
 const getChannelByType = (
@@ -115,6 +129,14 @@ const getChannelByType = (
       if (guild === undefined)
         throw new Error('No Guild was provided to construct Channel')
       return new ThreadChannel(client, data as ThreadChannelPayload, guild)
+    case ChannelTypes.GUILD_FORUM:
+      if (guild === undefined)
+        throw new Error('No Guild was provided to construct Channel')
+      return new GuildForumChannel(
+        client,
+        data as GuildForumChannelPayload,
+        guild
+      )
   }
 }
 
