@@ -1,5 +1,8 @@
 import type {
+  ApplicationCommandPermissions,
+  AutoModerationRulePayload,
   ChannelPayload,
+  GatewayAutoModerationActionExecutionEventPayload,
   GatewayChannelPinsUpdatePayload,
   GatewayGuildBanAddPayload,
   GatewayGuildBanRemovePayload,
@@ -52,6 +55,13 @@ export type GatewayEvents = {
   INVALID_SESSION: [];
   READY: [GatewayReadyPayload];
   RESUMED: [null];
+  APPLICATION_COMMAND_PERMISSIONS_UPDATE: [ApplicationCommandPermissions];
+  AUTO_MODERATION_RULE_CREATE: [AutoModerationRulePayload];
+  AUTO_MODERATION_RULE_UPDATE: [AutoModerationRulePayload];
+  AUTO_MODERATION_RULE_DELETE: [AutoModerationRulePayload];
+  AUTO_MODERATION_ACTION_EXECUTE: [
+    GatewayAutoModerationActionExecutionEventPayload,
+  ];
   CHANNEL_CREATE: [ChannelPayload];
   CHANNEL_UPDATE: [ChannelPayload];
   CHANNEL_DELETE: [ChannelPayload];

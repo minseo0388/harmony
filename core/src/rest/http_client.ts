@@ -188,6 +188,7 @@ export class HTTPClient implements HTTPClientOptions {
 
       queue.shift();
       if (res.ok) {
+        if (res.status === 204) return null as unknown as T;
         return res.json();
       } else if (res.status >= 500 && res.status < 600) {
         await res.body?.cancel();
@@ -195,9 +196,9 @@ export class HTTPClient implements HTTPClientOptions {
           `Discord API Internal Server Error (${res.status})`,
         );
       } else if (res.status >= 400 && res.status < 500) {
-        await res.body?.cancel();
+        const body = await res.text();
         throw new Error(
-          `Discord API Error (${res.status})`,
+          `Discord API Error (${res.status}): ${body}`,
         );
       } else {
         await res.body?.cancel();
@@ -208,13 +209,17 @@ export class HTTPClient implements HTTPClientOptions {
     };
 
     let tries = 0;
+    let nextCause;
     while (tries < this.maxRetries) {
       try {
         return await execute();
       } catch (error) {
         tries++;
+        if (nextCause !== undefined) error.cause = nextCause;
         if (tries === this.maxRetries) {
           throw error;
+        } else {
+          nextCause = error;
         }
       }
     }
