@@ -1,27 +1,17 @@
 import type {
-  ChannelType,
   CreateMessagePayload,
   MessagePayload,
   TextChannelPayload,
 } from "../../../../types/mod.ts";
-import type { Client } from "../../client/mod.ts";
-import { Message } from "../messages/message.ts";
+import { Message } from "../messages/mod.ts";
+import { Channel } from "./channel.ts";
 
-export class TextChannel {
-  client: Client;
-  lastPinTimestamp: string | null;
-  lastMessageID: string | null;
-  id: string;
-  type: ChannelType;
-  flags: number;
-
-  constructor(client: Client, payload: TextChannelPayload) {
-    this.client = client;
-    this.lastPinTimestamp = payload.last_pin_timestamp;
-    this.lastMessageID = payload.last_message_id;
-    this.id = payload.id;
-    this.type = payload.type;
-    this.flags = payload.flags;
+export class TextChannel<P extends TextChannelPayload> extends Channel<P> {
+  get lastPinTimestamp(): string | null {
+    return this.payload.last_pin_timestamp;
+  }
+  get lastMessageID(): string | null {
+    return this.payload.last_message_id;
   }
 
   async send(arg: string | CreateMessagePayload): Promise<Message> {

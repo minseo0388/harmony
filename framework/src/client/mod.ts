@@ -1,26 +1,37 @@
-import {
+import type {
   APIManagerOptions,
-  RESTClient,
-  ShardedGateway,
+  ShardedGatewayEvents,
 } from "../../../core/mod.ts";
+import { RESTClient, ShardedGateway } from "../../../core/mod.ts";
 import { EventEmitter } from "../../deps.ts";
-import { ClientEvents } from "./events.ts";
+import type { ClientEvents } from "./events.ts";
 import { GatewayHandlers } from "../gateway/mod.ts";
-import { ShardedGatewayEvents } from "../../../mod.ts";
+import { ChannelsManager } from "../managers/mod.ts";
+import { GuildsManager } from "../managers/guilds.ts";
+import { UsersManager } from "../managers/users.ts";
+import { RolesManager } from "../managers/roles.ts";
+import { EmojisManager } from "../managers/emojis.ts";
 
 export interface ClientOptions extends APIManagerOptions {
-  cache?: "memory" | "redis" | "none"; // TODO: implement a proper cache system
+  intents?: number;
 }
 
 export class Client extends EventEmitter<ClientEvents> {
-  cache: "memory" | "redis" | "none"; // TODO: implement a proper cache system
   gateway: ShardedGateway;
   rest: RESTClient;
   token: string;
+  channels = new ChannelsManager(this);
+  guilds = new GuildsManager(this);
+  users = new UsersManager(this);
+  roles = new RolesManager(this);
+  emojis = new EmojisManager(this);
 
   constructor(token: string, options: ClientOptions = {}) {
     super();
-    this.cache = options.cache ?? "memory";
+    if (options.intents !== undefined) {
+      options.gateway ??= {};
+      options.gateway.intents = options.intents;
+    }
     this.gateway = new ShardedGateway(token, options.gateway?.intents ?? 0, {
       ...options.gateway,
     });
@@ -55,5 +66,9 @@ export class Client extends EventEmitter<ClientEvents> {
       };
       this.on(event, eventFunc);
     });
+  }
+
+  async connect() {
+    return await this.gateway.spawnAndRunAll();
   }
 }
