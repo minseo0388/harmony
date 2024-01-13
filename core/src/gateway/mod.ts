@@ -40,6 +40,9 @@ export class Gateway extends EventEmitter<GatewayEvents> {
   private sequence: number | null = null;
   private sessionID: string | null = null;
   private connected = false;
+  private retryCount = 0;
+  private connectionError = false;
+  private reconnecting = false;
 
   constructor(
     token: string,
@@ -66,7 +69,7 @@ export class Gateway extends EventEmitter<GatewayEvents> {
   }
 
   connect() {
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve) => {
       this.ws = new WebSocket(
         `${DISCORD_GATEWAY_BASE}/?v=${DISCORD_API_VERSION}&encoding=json`,
       );
@@ -77,20 +80,18 @@ export class Gateway extends EventEmitter<GatewayEvents> {
       };
       this.ws.onmessage = this.onmessage.bind(this);
       this.ws.onclose = this.onclose.bind(this);
-      this.ws.onerror = (e) => {
-        reject(e);
-      };
+      this.ws.onerror = this.onerror.bind(this);
       this.ws.binaryType = "arraybuffer";
     });
   }
 
-  disconnect(code?: GatewayCloseCode) {
+  disconnect(code?: GatewayCloseCode, reason?: string) {
     return new Promise<void>((resolve) => {
       this.ws.onclose = (e) => {
         this.onclose.bind(this)(e);
         resolve();
       };
-      this.ws.close(code);
+      this.ws.close(code, reason ?? "");
       this.initVariables();
       this.connected = false;
     });
@@ -98,6 +99,7 @@ export class Gateway extends EventEmitter<GatewayEvents> {
 
   private onopen() {
     this.connected = true;
+    this.retryCount = 0;
     this.emit("CONNECTED");
   }
 
@@ -177,12 +179,16 @@ export class Gateway extends EventEmitter<GatewayEvents> {
       case GatewayCloseCode.ALREADY_AUTHENTICATED:
       case GatewayCloseCode.RATE_LIMITED:
         this.emit("CLOSED", e.code, true, true);
-        this.reconnect(true);
+        if (!this.reconnecting) {
+          this.reconnect(true);
+        }
         break;
       case GatewayCloseCode.NOT_AUTHENTICATED:
       case GatewayCloseCode.SESSION_TIMEOUT:
         this.emit("CLOSED", e.code, true, false);
-        this.reconnect();
+        if (!this.reconnecting) {
+          this.reconnect();
+        }
         break;
       case GatewayCloseCode.INVALID_SHARD:
       case GatewayCloseCode.SHARDING_REQUIRED:
@@ -190,16 +196,37 @@ export class Gateway extends EventEmitter<GatewayEvents> {
       case GatewayCloseCode.INVALID_INTENT:
       case GatewayCloseCode.DISALLOWED_INTENT:
       case GatewayCloseCode.AUTHENTICATION_FAILED:
+        this.emit("CLOSED", e.code, false, true);
+        break;
       default:
-        this.emit("CLOSED", e.code, false, false);
+        this.emit("CLOSED", e.code, this.retryCount < 5, !this.connectionError);
+        if (!this.reconnecting) {
+          if (this.retryCount < 5) {
+            setTimeout(() => {
+              this.retryCount++;
+              this.reconnect(!this.connectionError);
+            }, 500);
+          } else {
+            throw new Error(
+              `Gateway connection closed with code ${e.code}, retry limit reached(${this.retryCount})`,
+            );
+          }
+        }
         break;
     }
+    this.reconnecting = false;
+  }
+
+  private onerror(ev: Event | ErrorEvent) {
+    this.emit("ERROR", ev);
+    this.connectionError = true;
   }
 
   reconnect(resume = false, code?: number) {
     this.resume = resume;
+    this.reconnecting = true;
     if (this.connected) {
-      this.disconnect(code);
+      this.disconnect(code, "reconnect");
     }
     this.connect();
   }
@@ -210,7 +237,7 @@ export class Gateway extends EventEmitter<GatewayEvents> {
       this.send(GatewayOpcode.HEARTBEAT, this.sequence);
     } else {
       // oh my god, the server is dead
-      this.reconnect(true, 4000);
+      this.disconnect(4000, "heartbeat timeout");
     }
   }
 
