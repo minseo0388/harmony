@@ -1,8 +1,9 @@
 import { UserPayload } from "../users/user.ts";
-import { TeamPayload } from "./team.ts";
+import { TeamPayload } from "../teams/team.ts";
+import { snowflake } from "../common.ts";
 
 export interface ApplicationPayload {
-  id: string;
+  id: snowflake;
   name: string;
   icon: string | null;
   description: string;
@@ -16,22 +17,32 @@ export interface ApplicationPayload {
   summary: string;
   verify_key: string;
   team: TeamPayload | null;
-  guild_id?: string;
-  primary_sku_id?: string;
+  guild_id?: snowflake;
+  primary_sku_id?: snowflake;
   slug?: string;
   cover_image?: string;
   /** Use it with ApplicationFlags. */
   flags?: number;
+  approximate_guild_count?: number;
+  redirect_uris?: string[];
+  interactions_endpoint_url?: string;
   tags?: string[];
   install_params?: ApplicationInstallParams;
   custom_install_url?: string;
   role_connections_verification_url?: string;
-  integration_types?: ApplicationIntegrationType[];
+  integration_types_config?: Record<
+    keyof ApplicationIntegrationType,
+    ApplicationIntegrationTypeConfig
+  >;
 }
 
 export enum ApplicationIntegrationType {
   GUILD_INSTALL = 0,
   USER_INSTALL = 1,
+}
+
+export interface ApplicationIntegrationTypeConfig {
+  oauth2_install_params?: ApplicationInstallParams;
 }
 
 export interface ApplicationInstallParams {
@@ -50,4 +61,20 @@ export enum ApplicationFlags {
   GATEWAY_MESSAGE_CONTENT = 1 << 18,
   GATEWAY_MESSAGE_CONTENT_LIMITED = 1 << 19,
   APPLICATION_COMMAND_BADGE = 1 << 23,
+}
+
+export interface EditApplicationPayload {
+  custom_install_url?: string;
+  description?: string;
+  role_connections_verification_url?: string;
+  install_params?: ApplicationInstallParams;
+  integration_types_config?: Record<
+    keyof ApplicationIntegrationType,
+    ApplicationIntegrationTypeConfig
+  >;
+  flags?: number;
+  icon?: string | null;
+  cover_image?: string | null;
+  interactions_endpoint_url?: string;
+  tags?: string[];
 }
