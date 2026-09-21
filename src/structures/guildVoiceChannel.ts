@@ -4,7 +4,7 @@ import type {
   ModifyVoiceChannelOption,
   ModifyVoiceChannelPayload
 } from '../types/channel.ts'
-import { CHANNEL } from '../types/endpoint.ts'
+import { CHANNEL, CHANNEL_VOICE_STATUS } from '../types/endpoint.ts'
 import { GuildChannel } from './channel.ts'
 import type { Guild } from './guild.ts'
 import { GuildChannelVoiceStatesManager } from '../managers/guildChannelVoiceStates.ts'
@@ -14,21 +14,8 @@ import type {
   VoiceChannelJoinOptions,
   VoiceServerData
 } from '../client/voice.ts'
-import { Mixin } from '../../deps.ts'
-import { TextChannel } from './textChannel.ts'
 
-const VoiceChannelSuper: (abstract new (
-  client: Client,
-  data: GuildVoiceChannelPayload,
-  guild: Guild
-) => TextChannel & GuildChannel) &
-  Pick<typeof TextChannel, keyof typeof TextChannel> &
-  Pick<typeof GuildChannel, keyof typeof GuildChannel> = Mixin(
-  TextChannel,
-  GuildChannel
-)
-
-export class VoiceChannel extends VoiceChannelSuper {
+export class VoiceChannel extends GuildChannel {
   bitrate!: string
   userLimit!: number
   voiceStates: GuildChannelVoiceStatesManager =
@@ -53,13 +40,15 @@ export class VoiceChannel extends VoiceChannelSuper {
     return this.client.voice.leave(this.guild)
   }
 
-  readFromData(data: GuildVoiceChannelPayload): void {
+  override readFromData(data: GuildVoiceChannelPayload): void {
     super.readFromData(data)
     this.bitrate = data.bitrate ?? this.bitrate
     this.userLimit = data.user_limit ?? this.userLimit
   }
 
-  async edit(options?: ModifyVoiceChannelOption): Promise<VoiceChannel> {
+  override async edit(
+    options?: ModifyVoiceChannelOption
+  ): Promise<VoiceChannel> {
     const body: ModifyVoiceChannelPayload = {
       name: options?.name,
       position: options?.position,
@@ -71,7 +60,11 @@ export class VoiceChannel extends VoiceChannelSuper {
 
     const resp = await this.client.rest.patch(CHANNEL(this.id), body)
 
-    return new VoiceChannel(this.client, resp, this.guild)
+    return new VoiceChannel(
+      this.client,
+      resp as GuildVoiceChannelPayload,
+      this.guild
+    )
   }
 
   async setBitrate(rate: number | undefined): Promise<VoiceChannel> {
@@ -80,6 +73,14 @@ export class VoiceChannel extends VoiceChannelSuper {
 
   async setUserLimit(limit: number | undefined): Promise<VoiceChannel> {
     return await this.edit({ userLimit: limit })
+  }
+
+  async setVoiceChannelStatus(
+    status: string | undefined
+  ): Promise<VoiceChannel> {
+    await this.client.rest.put(CHANNEL_VOICE_STATUS(this.id), { status })
+    // The API doesn't return anything via http, only via gateway - Bloxs
+    return this
   }
 
   async disconnectMember(
